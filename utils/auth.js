@@ -1,27 +1,26 @@
-import jwt from "jsonwebtoken";
+import jwt from 'jsonwebtoken';
 
 const secret = process.env.JWT_SECRET;
-const expiration = "2h";
+const expiration = '2h';
 
 export function authMiddleware(req, res, next) {
-  let token = req.body.token || req.query.token || req.headers.authorization;
+  let token = req.headers.authorization || req.body?.token || req.query?.token;
 
-  if (req.headers.authorization) {
-    token = token.split(" ").pop().trim();
+  if (token) {
+    token = token.split(' ').pop().trim();
   }
-
   if (!token) {
     return res
       .status(401)
-      .json({ message: "You must be logged in to do that." });
+      .json({ message: 'You must be logged in to do that.' });
   }
 
   try {
     const { data } = jwt.verify(token, secret, { maxAge: expiration });
     req.user = data;
-  } catch {
-    console.log("Invalid token");
-    return res.status(401).json({ message: "Invalid token." });
+  } catch (error) {
+    console.log('Invalid token', error);
+    return res.status(401).json({ message: 'Invalid token.' });
   }
 
   next();
