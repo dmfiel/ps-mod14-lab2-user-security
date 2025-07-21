@@ -1,6 +1,7 @@
 import express from 'express';
 import Note from '../models/Notes.js';
 import { authMiddleware } from '../utils/auth.js';
+import { isEmpty } from '../utils/isEmpty.js';
 
 const router = express.Router();
 
@@ -17,21 +18,20 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/notes - Get all notes for the logged-in user
+// GET /api/notes - Get note for the logged-in user
 router.get('/:id', async (req, res) => {
   try {
-    const notes = await Note.findOne({
-      _id: req.params.id,
-      owner: req.user._id
-    });
-    function isEmpty(obj) {
-      return Object.keys(obj).length === 0;
-    }
-    if (isEmpty(notes))
-      res
+    const note = await Note.findById(req.params.id);
+    if (isEmpty(note))
+      return res
+        .status(404)
+        .json({ message: `No note found for id (${req.params.id}).` });
+    if (note.owner.toString() !== req.user._id)
+      return res
         .status(403)
         .json({ message: 'You are now allowed to see that note.' });
-    res.json(notes);
+
+    res.json(note);
   } catch (err) {
     res.status(500).json(err);
   }
@@ -53,19 +53,26 @@ router.post('/', async (req, res) => {
 // PUT /api/notes/:id - Update a note
 router.put('/:id', async (req, res) => {
   try {
-    // This needs an authorization check
-    const note = await Note.findOneAndUpdate(
+    let note = await Note.findById(req.params.id);
+    if (isEmpty(note))
+      return res
+        .status(404)
+        .json({ message: `No note found for id (${req.params.id}).` });
+    if (note.owner.toString() !== req.user._id)
+      return res
+        .status(403)
+        .json({ message: 'You are now allowed to update that note.' });
+
+    note = await Note.findOneAndUpdate(
       { _id: req.params.id, owner: req.user._id },
       req.body,
       {
         new: true
       }
     );
-
     if (!note) {
       return res.status(404).json({ message: 'No note found with this id!' });
     }
-
     res.json(note);
   } catch (err) {
     res.status(500).json(err);
@@ -75,15 +82,25 @@ router.put('/:id', async (req, res) => {
 // DELETE /api/notes/:id - Delete a note
 router.delete('/:id', async (req, res) => {
   try {
-    // This needs an authorization check
-    const note = await Note.findOneAndDelete({
+    let note = await Note.findById(req.params.id);
+
+    if (isEmpty(note))
+      return res
+        .status(404)
+        .json({ message: `No note found for id (${req.params.id}).` });
+    if (note.owner.toString() !== req.user._id)
+      return res
+        .status(403)
+        .json({ message: 'You are now allowed to delete that note.' });
+
+    note = await Note.findOneAndDelete({
       _id: req.params.id,
       owner: req.user._id
     });
     if (!note) {
       return res.status(404).json({ message: 'No note found with this id!' });
     }
-    res.json({ message: 'Note deleted!' });
+    res.json({ message: 'Note deleted!' }, note);
   } catch (err) {
     res.status(500).json(err);
   }
